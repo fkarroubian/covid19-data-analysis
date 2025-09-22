@@ -49,7 +49,7 @@ GROUP BY continent
 ORDER BY TotalDeathCount desc
 
 
---Global Numbers
+-- Global Numbers
 
 SELECT SUM(new_cases) as Total_cases, SUM(cast(new_deaths as int)) As Total_deaths,SUM(cast(new_deaths as int))/SUM(new_cases)*100 as DeathsPercentage
 FROM PortfolioProject..CovidDeaths
@@ -59,5 +59,76 @@ AND continent is NOT NULL
 ORDER BY 1,2
 
 
+--looking at population vs vaccinations
+
+SELECT d.Continent, d.Country, d.date, d.population, v.new_vaccinations
+, SUM(CONVERT(float,v.new_vaccinations)) OVER(PARTITION BY d.Country ORDER BY d.Country,
+d.date) as CumulativeVaccinations
+--, (CumulativeVaccinations/population)* 100  as VaccinatedPeoplePercentage
+FROM PortfolioProject..CovidDeaths d
+JOIN PortfolioProject..CovidVaccinations v
+  on d.country=v.country
+  AND d.date=v.date
+WHERE d.continent is NOT NULL
+ORDER BY 2,3
+
+-- Use CTE
+
+WITH PopvsVac (Continent,Country,date,population,new_vaccinations,CumulativeVaccinations)
+As
+(
+SELECT d.Continent, d.Country, d.date, d.population, v.new_vaccinations
+, SUM(CONVERT(float,v.new_vaccinations)) OVER(PARTITION BY d.Country ORDER BY d.Country,
+d.date) as CumulativeVaccinations
+FROM PortfolioProject..CovidDeaths d
+JOIN PortfolioProject..CovidVaccinations v
+  on d.country=v.country
+  AND d.date=v.date
+WHERE d.continent is NOT NULL
+--ORDER BY 2,3
+)
+SELECT *, (CumulativeVaccinations/population)* 100  as VaccinatedPeoplePercentage
+FROM PopvsVac
 
 
+-- Temp Table
+
+DROP TABLE IF exists #PercentpopulationVaccinated
+Create Table #PercentpopulationVaccinated
+(
+Continent varchar(255),
+Country varchar(255),
+date DateTime,
+population numeric,
+new_vaccinations numeric,
+CumulativeVaccinations numeric
+)
+INSERT INTO #PercentpopulationVaccinated
+SELECT d.Continent, d.Country, d.date, d.population, v.new_vaccinations
+, SUM(CONVERT(float,v.new_vaccinations)) OVER(PARTITION BY d.Country ORDER BY d.Country,
+d.date) as CumulativeVaccinations
+FROM PortfolioProject..CovidDeaths d
+JOIN PortfolioProject..CovidVaccinations v
+  on d.country=v.country
+  AND d.date=v.date
+--WHERE d.continent is NOT NULL
+--ORDER BY 2,3
+
+SELECT *, (CumulativeVaccinations/population)* 100  as VaccinatedPeoplePercentage
+FROM #PercentpopulationVaccinated
+
+
+-- Creating View to store data for later visualisation
+
+CREATE View PercentpopulationVaccinated as
+SELECT d.Continent, d.Country, d.date, d.population, v.new_vaccinations
+, SUM(CONVERT(float,v.new_vaccinations)) OVER(PARTITION BY d.Country ORDER BY d.Country,
+d.date) as CumulativeVaccinations
+FROM PortfolioProject..CovidDeaths d
+JOIN PortfolioProject..CovidVaccinations v
+  on d.country=v.country
+  AND d.date=v.date
+WHERE d.continent is NOT NULL
+
+SELECT *
+FROM PercentpopulationVaccinated
